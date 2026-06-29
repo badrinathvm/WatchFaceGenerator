@@ -1,0 +1,115 @@
+{
+  "appBundleID": "com.badarinathvm.PickleRite.watchkitapp",
+  "extensionBundleID": "com.badarinathvm.PickleRite.watchkitapp.PickleRite-WidgetExtension",
+  "complicationType": 56,
+  "widgets": {
+    "ServeCounterWidget":           "Serve Error",
+    "LobCounterWidget":             "Lob Miss",
+    "ReturnCounterWidget":          "Missed Return",
+    "KitchenFaultCounterWidget":    "Kitchen Fault",
+    "NetCounterWidget":             "Net Error",
+    "DinkCounterWidget":            "Dink Error",
+    "VolleyCounterWidget":          "Volley Error",
+    "SmashCounterWidget":           "Smash Error",
+    "SlowNetTransitionCounterWidget": "Slow Net Transition",
+    "SubmitWidget":                 "Submit Session"
+  },
+  "faces": [
+    {
+      "name": "Modular",
+      "analyticsID": "whistler-digital",
+      "faceType": "whistler-digital",
+      "customization": {
+        "color": "multicolor",
+        "numerals": "style 1",
+        "background": "style 1"
+      },
+      "complications": {
+        "top left":      "SubmitWidget",
+        "center":        "DinkCounterWidget",
+        "bottom left":   "NetCounterWidget",
+        "bottom center": "ReturnCounterWidget",
+        "bottom right":  "LobCounterWidget"
+      }
+    },
+    {
+      "name": "ModularCompact",
+      "analyticsID": "whistler-subdials",
+      "faceType": "whistler-subdials",
+      "customization": {
+        "color": "special.multicolor",
+        "style": "digital",
+        "numerals": "style 1",
+        "background": "style 1"
+      },
+      "complications": {
+        "top":    "NetCounterWidget",
+        "center": "SubmitWidget",
+        "bottom": "ReturnCounterWidget"
+      }
+    },
+    {
+      "name": "Infograph",
+      "analyticsID": "whistler-analog",
+      "faceType": "whistler-analog",
+      "customization": {
+        "color": "white"
+      },
+      "complications": {
+        "top left":     "SubmitWidget",
+        "top right":    "LobCounterWidget",
+        "slot 1":       "ServeCounterWidget",
+        "slot 2":       "ReturnCounterWidget",
+        "slot 3":       "NetCounterWidget",
+        "bezel":        "KitchenFaultCounterWidget",
+        "bottom left":  "SmashCounterWidget",
+        "bottom right": "VolleyCounterWidget"
+      }
+    },
+    {
+      "name": "Chronograph",
+      "analyticsID": "shark",
+      "faceType": "shark",
+      "appleBundleID": "com.apple.NTKAlaskanFaceBundle.NTKSharkFaceBundle",
+      "customization": {
+        "color": "seasons.fall2025.neonYellow",
+        "detail": "style 1"
+      },
+      "complications": {
+        "top left":     "SubmitWidget",
+        "top right":    "SlowNetTransitionCounterWidget",
+        "bottom left":  "VolleyCounterWidget",
+        "bottom right": "NetCounterWidget"
+      }
+    },
+    {
+      "name": "NikeDigital",
+      "analyticsID": "victory-digital-r",
+      "faceType": "victory digital",
+      "customization": {
+        "color": "green",
+        "typeface": "style 4"
+      },
+      "complications": {
+        "slot 1": "DinkCounterWidget",
+        "slot 2": "SlowNetTransitionCounterWidget",
+        "bottom": "SubmitWidget"
+      }
+    },
+    {
+      "name": "NikeCompact",
+      "analyticsID": "shiba",
+      "faceType": "shiba",
+      "appleBundleID": "com.apple.NTKShibaFaceBundle",
+      "customization": {
+        "color": "victory.black & victory.hyperGrape",
+        "style": "style 3"
+      },
+      "complications": {
+        "top":    "SubmitWidget",
+        "center": "NetCounterWidget",
+        "bottom": "DinkCounterWidget"
+      }
+    }
+  ]
+}

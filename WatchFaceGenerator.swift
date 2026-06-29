@@ -1,133 +1,108 @@
 #!/usr/bin/swift
-// WatchFaceBuilder.swift
-// Generates .watchface files from code — no Apple Watch needed.
-// Run from the project root: swift Scripts/WatchFaceBuilder.swift
+// WatchFaceGenerator.swift
+// Generates .watchface files from watchface-config.json — no Apple Watch needed.
+//
+// Usage:
+//   swift WatchFaceGenerator.swift [options]
+//
+// Options:
+//   --config <path>               Path to JSON config (default: watchface-config.json)
+//   --app-bundle-id <id>          Override appBundleID from config
+//   --extension-bundle-id <id>    Override extensionBundleID from config
 
 import Foundation
 
-// MARK: - Constants
+// MARK: - Config Schema
 
-private let appBundleID      = "com.badarinathvm.PickleRite.watchkitapp"
-private let extensionBundleID = "com.badarinathvm.PickleRite.watchkitapp.PickleRite-WidgetExtension"
-private let complicationType  = 56
-
-// MARK: - Widget Kinds
-
-enum PickleRiteWidget: String {
-    case serve             = "ServeCounterWidget"
-    case lob               = "LobCounterWidget"
-    case missedReturn      = "ReturnCounterWidget"
-    case kitchenFault      = "KitchenFaultCounterWidget"
-    case net               = "NetCounterWidget"
-    case dink              = "DinkCounterWidget"
-    case volley            = "VolleyCounterWidget"
-    case smash             = "SmashCounterWidget"
-    case slowNetTransition = "SlowNetTransitionCounterWidget"
-    case submit            = "SubmitWidget"
-
-    var displayName: String {
-        switch self {
-        case .serve:             return "Serve Error"
-        case .lob:               return "Lob Miss"
-        case .missedReturn:      return "Missed Return"
-        case .kitchenFault:      return "Kitchen Fault"
-        case .net:               return "Net Error"
-        case .dink:              return "Dink Error"
-        case .volley:            return "Volley Error"
-        case .smash:             return "Smash Error"
-        case .slowNetTransition: return "Slow Net Transition"
-        case .submit:            return "Submit Session"
-        }
-    }
+struct AppConfig: Decodable {
+    var appBundleID: String
+    var extensionBundleID: String
+    var complicationType: Int
+    var widgets: [String: String]  // widgetKind → displayName
+    var faces: [FaceConfig]
 }
 
-// MARK: - Face Configuration
-
-struct FaceConfiguration {
+struct FaceConfig: Decodable {
     let name: String
     let analyticsID: String
-    let faceType: String           // Apple-internal: "whistler-digital", "shark", "bundle", etc.
-    let appleBundleID: String?     // Only for bundle-based faces (Chronograph, NikeCompact)
+    let faceType: String
+    let appleBundleID: String?
     let customization: [String: String]
-    let complications: [String: PickleRiteWidget]
-    let deviceSize: Int
+    let complications: [String: String]  // slot → widgetKind
+    let deviceSize: Int?
+}
 
-    init(
-        name: String,
-        analyticsID: String,
-        faceType: String,
-        appleBundleID: String? = nil,
-        customization: [String: String],
-        complications: [String: PickleRiteWidget],
-        deviceSize: Int = 8
-    ) {
-        self.name = name
-        self.analyticsID = analyticsID
-        self.faceType = faceType
-        self.appleBundleID = appleBundleID
-        self.customization = customization
-        self.complications = complications
-        self.deviceSize = deviceSize
+// MARK: - CLI Parsing
+
+func parseArgs() -> (configPath: String, appBundleID: String?, extensionBundleID: String?) {
+    var configPath = "watchface-config.json"
+    var appBundleID: String?
+    var extensionBundleID: String?
+
+    var iter = CommandLine.arguments.dropFirst().makeIterator()
+    while let arg = iter.next() {
+        switch arg {
+        case "--config":              configPath = iter.next() ?? configPath
+        case "--app-bundle-id":       appBundleID = iter.next()
+        case "--extension-bundle-id": extensionBundleID = iter.next()
+        default: break
+        }
     }
+    return (configPath, appBundleID, extensionBundleID)
 }
 
 // MARK: - Builder
 
 struct WatchFaceBuilder {
+    let face: FaceConfig
+    let config: AppConfig
 
-    let config: FaceConfiguration
-
-    // Builds face.json — the actual watch face configuration
     func buildFaceJSON() throws -> Data {
         var root: [String: Any] = [
-            "analytics id": config.analyticsID,
+            "analytics id": face.analyticsID,
             "forMigration": false,
             "version": 4,
-            "customization": config.customization
+            "customization": face.customization
         ]
 
-        if let appleBundleID = config.appleBundleID {
+        if let bundleID = face.appleBundleID {
             root["face type"] = "bundle"
-            root["bundle id"] = appleBundleID
+            root["bundle id"] = bundleID
         } else {
-            root["face type"] = config.faceType
+            root["face type"] = face.faceType
         }
 
         var complications: [String: Any] = [:]
-        for (slot, widget) in config.complications {
+        for (slot, widgetKind) in face.complications {
             complications[slot] = [
-                "app": appBundleID,
+                "app": config.appBundleID,
                 "descriptor": [
-                    "containerBundleIdentifier": appBundleID,
-                    "kind": widget.rawValue,
-                    "extensionBundleIdentifier": extensionBundleID
+                    "containerBundleIdentifier": config.appBundleID,
+                    "kind": widgetKind,
+                    "extensionBundleIdentifier": config.extensionBundleID
                 ],
-                "type": complicationType,
-                "extension": appBundleID
+                "type": config.complicationType,
+                "extension": config.appBundleID
             ]
         }
         root["complications"] = complications
 
-        return try JSONSerialization.data(
-            withJSONObject: root,
-            options: [.prettyPrinted, .sortedKeys]
-        )
+        return try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
     }
 
-    // Builds metadata.json — slot summary used by watchOS catalog
     func buildMetadataJSON() throws -> Data {
         // metadata uses hyphenated slot names ("bottom right" → "bottom-right")
         var bundleIDs: [String: String] = [:]
         var names: [String: String] = [:]
 
-        for (slot, widget) in config.complications {
+        for (slot, widgetKind) in face.complications {
             let key = slot.replacingOccurrences(of: " ", with: "-")
-            bundleIDs[key] = appBundleID
-            names[key] = widget.displayName
+            bundleIDs[key] = config.appBundleID
+            names[key] = config.widgets[widgetKind] ?? widgetKind
         }
 
         let metadata: [String: Any] = [
-            "device_size": config.deviceSize,
+            "device_size": face.deviceSize ?? 8,
             "complications_bundle_ids": bundleIDs,
             "complications_item_ids": [String: String](),
             "complication_sample_templates": [String: String](),
@@ -135,13 +110,9 @@ struct WatchFaceBuilder {
             "version": 2
         ]
 
-        return try JSONSerialization.data(
-            withJSONObject: metadata,
-            options: [.prettyPrinted, .sortedKeys]
-        )
+        return try JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys])
     }
 
-    // Packs face.json + metadata.json + placeholder PNGs into a .watchface zip
     func build(outputDirectory: URL) throws {
         let fm = FileManager.default
         let tmpDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -159,7 +130,7 @@ struct WatchFaceBuilder {
         try placeholder.write(to: tmpDir.appendingPathComponent("no_borders_snapshot.png"))
 
         try fm.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
-        let outputURL = outputDirectory.appendingPathComponent("\(config.name).watchface")
+        let outputURL = outputDirectory.appendingPathComponent("\(face.name).watchface")
         try? fm.removeItem(at: outputURL)
 
         let zip = Process()
@@ -175,121 +146,51 @@ struct WatchFaceBuilder {
         zip.waitUntilExit()
 
         let size = (try? fm.attributesOfItem(atPath: outputURL.path)[.size] as? Int) ?? 0
-        print("✅  \(config.name).watchface  (\(size / 1024)KB)")
+        print("✅  \(face.name).watchface  (\(size / 1024)KB)")
     }
 }
 
-// MARK: - Pre-built Configurations
-// Each entry mirrors the existing .watchface files in WatchFaces/.
-// Swap widget kinds here to customise what each slot tracks.
-
-let configurations: [FaceConfiguration] = [
-
-    FaceConfiguration(
-        name: "Modular",
-        analyticsID: "whistler-digital",
-        faceType: "whistler-digital",
-        customization: ["color": "multicolor", "numerals": "style 1", "background": "style 1"],
-        complications: [
-            "top left":      .submit,
-            "center":        .dink,
-            "bottom left":   .net,
-            "bottom center": .missedReturn,
-            "bottom right":  .lob
-        ]
-    ),
-
-    FaceConfiguration(
-        name: "ModularCompact",
-        analyticsID: "whistler-subdials",
-        faceType: "whistler-subdials",
-        customization: ["color": "special.multicolor", "style": "digital",
-                        "numerals": "style 1", "background": "style 1"],
-        complications: [
-            "top":    .net,
-            "center": .submit,
-            "bottom": .missedReturn
-        ]
-    ),
-
-    FaceConfiguration(
-        name: "Infograph",
-        analyticsID: "whistler-analog",
-        faceType: "whistler-analog",
-        customization: ["color": "white"],
-        complications: [
-            "top left":     .submit,
-            "top right":    .lob,
-            "slot 1":       .serve,
-            "slot 2":       .missedReturn,
-            "slot 3":       .net,
-            "bezel":        .kitchenFault,
-            "bottom left":  .smash,
-            "bottom right": .volley
-        ]
-    ),
-
-    FaceConfiguration(
-        name: "Chronograph",
-        analyticsID: "shark",
-        faceType: "shark",
-        appleBundleID: "com.apple.NTKAlaskanFaceBundle.NTKSharkFaceBundle",
-        customization: ["color": "seasons.fall2025.neonYellow", "detail": "style 1"],
-        complications: [
-            "top left":     .submit,
-            "top right":    .slowNetTransition,
-            "bottom left":  .volley,
-            "bottom right": .net
-        ]
-    ),
-
-    FaceConfiguration(
-        name: "NikeDigital",
-        analyticsID: "victory-digital-r",
-        faceType: "victory digital",
-        customization: ["color": "green", "typeface": "style 4"],
-        complications: [
-            "slot 1": .dink,
-            "slot 2": .slowNetTransition,
-            "bottom": .submit
-        ]
-    ),
-
-    FaceConfiguration(
-        name: "NikeCompact",
-        analyticsID: "shiba",
-        faceType: "shiba",
-        appleBundleID: "com.apple.NTKShibaFaceBundle",
-        customization: ["color": "victory.black & victory.hyperGrape", "style": "style 3"],
-        complications: [
-            "top":    .submit,
-            "center": .net,
-            "bottom": .dink
-        ]
-    )
-]
-
 // MARK: - Main
-// Output goes to Scripts/output/ — never overwrites the real WatchFaces/ assets.
-// Copy a generated file into WatchFaces/ manually once you've verified it.
+
+let (configPath, cliAppBundleID, cliExtensionBundleID) = parseArgs()
 
 let projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-let outputDir   = projectRoot.appendingPathComponent("Scripts/output")
+let configURL   = URL(fileURLWithPath: configPath, relativeTo: projectRoot)
 
+guard let configData = try? Data(contentsOf: configURL) else {
+    print("❌  Config file not found: \(configURL.path)")
+    print("    Run from the project root or pass --config <path>")
+    exit(1)
+}
+
+var appConfig: AppConfig
+do {
+    appConfig = try JSONDecoder().decode(AppConfig.self, from: configData)
+} catch {
+    print("❌  Failed to parse config: \(error.localizedDescription)")
+    exit(1)
+}
+
+// CLI overrides take precedence over JSON values
+if let id = cliAppBundleID       { appConfig.appBundleID = id }
+if let id = cliExtensionBundleID { appConfig.extensionBundleID = id }
+
+let outputDir = projectRoot.appendingPathComponent("output")
+print("Config → \(configURL.path)")
 print("Output → \(outputDir.path)\n")
 
-for config in configurations {
-    let builder = WatchFaceBuilder(config: config)
+for faceConfig in appConfig.faces {
+    let builder = WatchFaceBuilder(face: faceConfig, config: appConfig)
     do {
         try builder.build(outputDirectory: outputDir)
     } catch {
-        print("❌  \(config.name): \(error.localizedDescription)")
+        print("❌  \(faceConfig.name): \(error.localizedDescription)")
     }
 }
 
 print("""
 
 Note: snapshot.png / no_borders_snapshot.png are 1×1 placeholders.
-To restore real snapshots, copy them from the originals in WatchFaces/:
-  unzip -p "PickleRite WatchApp Watch App/WatchFaces/Modular.watchface" snapshot.png > Scripts/output/snapshot.png
+To restore real snapshots, extract them from the originals:
+  unzip -p "WatchFaces/Modular.watchface" snapshot.png > output/snapshot.png
 """)
