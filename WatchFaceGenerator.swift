@@ -572,7 +572,19 @@ func load<T: Decodable>(_ type: T.Type, from path: String, relativeTo root: URL)
 // MARK: - Main
 
 let cliArgs     = parseArgs()
-let projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+
+// Resolve the project root relative to the SCRIPT's location, not the current
+// working directory — otherwise `snapshots/` is only found when the script is
+// run from inside the project folder, and every face silently falls back to the
+// 1×1 black placeholder. Falls back to the cwd if the script path isn't a file
+// (e.g. when run from stdin or an installed binary without a bundled snapshots/).
+let projectRoot: URL = {
+    let scriptDir = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
+    if FileManager.default.fileExists(atPath: scriptDir.appendingPathComponent("snapshots").path) {
+        return scriptDir
+    }
+    return URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+}()
 
 // --init: wizard → write files → exit (no generation)
 if cliArgs.runInit {
