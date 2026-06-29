@@ -22,6 +22,10 @@ cd WatchFaceGenerator
 swift WatchFaceGenerator.swift
 ```
 
+## Preview
+
+![WatchFaceGenerator execution](images/execution.png)
+
 ## Usage
 
 ### Default — wizard + generate
