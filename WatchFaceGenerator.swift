@@ -120,6 +120,8 @@ struct FaceTemplate {
     let appleBundleID: String?
     let customization: [String: String]
     let slots: [String]
+    let availableColors: [String]
+    var colorPrefix: String? = nil
 }
 
 let knownFaceTemplates: [FaceTemplate] = [
@@ -127,49 +129,58 @@ let knownFaceTemplates: [FaceTemplate] = [
         name: "Modular", analyticsID: "whistler-digital", faceType: "whistler-digital",
         appleBundleID: nil,
         customization: ["color": "multicolor", "numerals": "style 1", "background": "style 1"],
-        slots: ["top left", "center", "bottom left", "bottom center", "bottom right"]
+        slots: ["top left", "center", "bottom left", "bottom center", "bottom right"],
+        availableColors: ["multicolor", "white", "black", "red", "orange", "yellow", "green", "blue", "pink", "purple"]
     ),
     FaceTemplate(
         name: "ModularCompact", analyticsID: "whistler-subdials", faceType: "whistler-subdials",
         appleBundleID: nil,
         customization: ["color": "special.multicolor", "style": "digital", "numerals": "style 1", "background": "style 1"],
-        slots: ["top", "center", "bottom"]
+        slots: ["top", "center", "bottom"],
+        availableColors: ["special.multicolor", "white", "black", "red", "orange", "yellow", "green", "blue", "pink", "purple"]
     ),
     FaceTemplate(
         name: "Infograph", analyticsID: "whistler-analog", faceType: "whistler-analog",
         appleBundleID: nil,
         customization: ["color": "white"],
-        slots: ["top left", "top right", "slot 1", "slot 2", "slot 3", "bezel", "bottom left", "bottom right"]
+        slots: ["top left", "top right", "slot 1", "slot 2", "slot 3", "bezel", "bottom left", "bottom right"],
+        availableColors: ["white", "black", "gold", "silver", "red", "orange", "pink", "blue", "green", "purple"]
     ),
     FaceTemplate(
         name: "Chronograph", analyticsID: "shark", faceType: "shark",
         appleBundleID: "com.apple.NTKAlaskanFaceBundle.NTKSharkFaceBundle",
         customization: ["color": "seasons.fall2025.neonYellow", "detail": "style 1"],
-        slots: ["top left", "top right", "bottom left", "bottom right"]
+        slots: ["top left", "top right", "bottom left", "bottom right"],
+        availableColors: ["white", "black", "silver", "red", "blue", "green", "orange", "yellow", "loghtYellow", "lightGreen", "navy", "purple", "lightPurple","lightPink","pink", "plum", "stone", "warmGray", "cream","gray"],
+        colorPrefix: "standard."
     ),
     FaceTemplate(
         name: "NikeDigital", analyticsID: "victory-digital-r", faceType: "victory digital",
         appleBundleID: nil,
         customization: ["color": "green", "typeface": "style 4"],
-        slots: ["slot 1", "slot 2", "bottom"]
+        slots: ["slot 1", "slot 2", "bottom"],
+        availableColors: ["green", "white", "black", "orange", "pink", "blue", "yellow", "red", "purple"]
     ),
     FaceTemplate(
         name: "NikeCompact", analyticsID: "shiba", faceType: "shiba",
         appleBundleID: "com.apple.NTKShibaFaceBundle",
         customization: ["color": "victory.black & victory.hyperGrape", "style": "style 3"],
-        slots: ["top", "center", "bottom"]
+        slots: ["top", "center", "bottom"],
+        availableColors: ["victory.black & victory.hyperGrape", "victory.black & victory.electric", "victory.white & victory.teal", "victory.white & victory.volt"]
     ),
     FaceTemplate(
         name: "Meridian", analyticsID: "blackcomb", faceType: "blackcomb",
         appleBundleID: nil,
         customization: ["color": "Pistachio", "style": "style 1"],
-        slots: ["subdial top", "subdial right", "subdial bottom", "subdial left"]
+        slots: ["subdial top", "subdial right", "subdial bottom", "subdial left"],
+        availableColors: ["Pistachio", "white", "black", "red", "orange", "yellow", "green", "blue", "pink", "purple", "silver"]
     ),
     FaceTemplate(
         name: "ModularDuo", analyticsID: "cloudraker", faceType: "cloudraker",
         appleBundleID: "com.apple.NTKCloudrakerFaceBundle",
         customization: ["color": "special.multicolor", "numerals": "style 1"],
-        slots: ["top left", "center", "bottom"]
+        slots: ["top left", "center", "bottom"],
+        availableColors: ["special.multicolor", "white", "black", "blue", "green", "red", "orange", "yellow", "pink", "purple"]
     ),
 ]
 
@@ -349,11 +360,36 @@ func runSetup(appPath: String, facesPath: String, projectRoot: URL, writeFiles: 
             continue
         }
 
+        // ── Color picker ──────────────────────────────────────────────────────
+        let prefix = template.colorPrefix ?? ""
+        let defaultFull = template.customization["color"] ?? (prefix + template.availableColors[0])
+        let defaultDisplay = prefix.isEmpty ? defaultFull : String(defaultFull.dropFirst(prefix.count))
+        questionBox("Choose a color for \(template.name)",
+                    subtitle: "Enter a number, or type a custom value  (empty = \(defaultDisplay))",
+                    color: C.magenta)
+        for (i, color) in template.availableColors.enumerated() {
+            let marker = (prefix + color) == defaultFull ? "\(C.bGreen)●\(C.reset)" : " "
+            print("  \(marker) \(C.bold)\(i + 1).\(C.reset) \(color)")
+        }
+        print("\(C.bold)\(C.white)  ▶  \(C.reset)", terminator: "")
+        let colorInput = readLine()?.trimmingCharacters(in: .whitespaces) ?? ""
+        let chosenColor: String
+        if colorInput.isEmpty {
+            chosenColor = defaultFull
+        } else if let idx = Int(colorInput), idx >= 1, idx <= template.availableColors.count {
+            chosenColor = prefix + template.availableColors[idx - 1]
+        } else {
+            chosenColor = prefix + colorInput
+        }
+        var customization = template.customization
+        customization["color"] = chosenColor
+        print("\n\(C.bGreen)  ✓  Color → \(chosenColor)\(C.reset)")
+
         var face: [String: Any] = [
             "name": template.name,
             "analyticsID": template.analyticsID,
             "faceType": template.faceType,
-            "customization": template.customization,
+            "customization": customization,
             "complications": complications
         ]
         if let appleBundleID = template.appleBundleID { face["appleBundleID"] = appleBundleID }
