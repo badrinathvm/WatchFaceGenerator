@@ -8,6 +8,7 @@ A Swift script that generates `.watchface` files from an interactive wizard — 
 
 ```bash
 brew tap badrinathvm/tap
+brew trust badrinathvm/tap
 brew install watchface-generator
 ```
 
