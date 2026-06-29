@@ -156,6 +156,53 @@ The slug is the `faceType` lowercased with spaces replaced by hyphens. A `-no-bo
 | Meridian | blackcomb | Analog with 4 subdial slots |
 | ModularDuo | cloudraker | Bundle-based with 3 slots |
 
+## Troubleshooting
+
+### `No available formula with the name "watchface-generator"`
+
+Homebrew hasn't picked up the latest tap index. Run:
+
+```bash
+brew update
+brew install watchface-generator
+```
+
+If that still fails, use the fully qualified name:
+
+```bash
+brew install badrinathvm/tap/watchface-generator
+```
+
+### `Error: Refusing to untap badrinathvm/tap`
+
+This happens when other formulae from the same tap are already installed. Don't untap — just refresh:
+
+```bash
+brew update && brew install watchface-generator
+```
+
+### `Error: Formula reports different checksum`
+
+The `sha256` in the formula doesn't match the downloaded tarball — usually caused by the release tag being recreated or renamed. Recompute and update the formula:
+
+```bash
+curl -sL https://github.com/badrinathvm/WatchFaceGenerator/archive/refs/tags/v1.0.0.tar.gz | shasum -a 256
+```
+
+### `zsh: command not found: watchface-generator`
+
+The formula installed successfully but the bin path isn't in your shell. Run:
+
+```bash
+brew link watchface-generator
+```
+
+Or ensure `/opt/homebrew/bin` is in your `PATH`:
+
+```bash
+export PATH="/opt/homebrew/bin:$PATH"
+```
+
 ## Notes
 
 - Generated files land in `output/` — never commit or deploy them directly. Review each `.watchface` before copying it into your app bundle.
