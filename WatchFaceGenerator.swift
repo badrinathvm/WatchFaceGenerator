@@ -185,11 +185,16 @@ struct CLIArgs {
     var faceAssignments: [(String, String)] = []
 }
 
+let version = "1.0.0"
+
 func parseArgs() -> CLIArgs {
     var args = CLIArgs()
     var iter = CommandLine.arguments.dropFirst().makeIterator()
     while let arg = iter.next() {
         switch arg {
+        case "--version":
+            print("watchface-generator \(version)")
+            exit(0)
         case "--init":                args.runInit = true
         case "--app":                 args.appPath = iter.next() ?? args.appPath
         case "--faces":               args.facesPath = iter.next() ?? args.facesPath
