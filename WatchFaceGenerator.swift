@@ -196,7 +196,7 @@ struct CLIArgs {
     var faceAssignments: [(String, String)] = []
 }
 
-let version = "1.0.0"
+let version = "2.0.0"
 
 func parseArgs() -> CLIArgs {
     var args = CLIArgs()
