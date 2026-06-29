@@ -30,8 +30,8 @@ struct FaceConfig: Decodable {
     let customization: [String: String]
     let complications: [String: String]  // slot → widgetKind
     let deviceSize: Int?
-    let snapshotPath: String?
-    let noBordersSnapshotPath: String?
+    let snapshotPath: String?           // optional override; auto-resolved from faceType if absent
+    let noBordersSnapshotPath: String?  // optional override; falls back to snapshotPath resolution
 }
 
 // MARK: - CLI Parsing
@@ -60,14 +60,24 @@ struct WatchFaceBuilder {
     let config: AppConfig
     let projectRoot: URL
 
-    private func resolvedSnapshot(_ path: String?) -> Data? {
-        guard let path else { return nil }
-        let url = URL(fileURLWithPath: path, relativeTo: projectRoot)
-        guard let data = try? Data(contentsOf: url) else {
-            print("⚠️  Snapshot not found: \(url.path) — using placeholder")
-            return nil
+    // Sanitizes faceType to a filename-safe slug: "victory digital" → "victory-digital"
+    private var faceTypeSlug: String {
+        face.faceType.lowercased().replacingOccurrences(of: " ", with: "-")
+    }
+
+    private func resolvedSnapshot(override path: String?, suffix: String) -> Data? {
+        // 1. Explicit per-face override in config
+        if let path {
+            let url = URL(fileURLWithPath: path, relativeTo: projectRoot)
+            if let data = try? Data(contentsOf: url) { return data }
+            print("⚠️  Snapshot override not found: \(url.path)")
         }
-        return data
+        // 2. Auto-resolve from snapshots/<faceType-slug><suffix>.png
+        let autoURL = projectRoot
+            .appendingPathComponent("snapshots")
+            .appendingPathComponent("\(faceTypeSlug)\(suffix).png")
+        if let data = try? Data(contentsOf: autoURL) { return data }
+        return nil
     }
 
     func buildFaceJSON() throws -> Data {
@@ -139,8 +149,8 @@ struct WatchFaceBuilder {
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVQI12NgAAAAAgAB4iG8MwAAAABJRU5ErkJggg=="
         )!
 
-        let snapshotData = resolvedSnapshot(face.snapshotPath) ?? placeholder
-        let noBordersData = resolvedSnapshot(face.noBordersSnapshotPath) ?? snapshotData
+        let snapshotData    = resolvedSnapshot(override: face.snapshotPath, suffix: "") ?? placeholder
+        let noBordersData   = resolvedSnapshot(override: face.noBordersSnapshotPath, suffix: "-no-borders") ?? snapshotData
         try snapshotData.write(to: tmpDir.appendingPathComponent("snapshot.png"))
         try noBordersData.write(to: tmpDir.appendingPathComponent("no_borders_snapshot.png"))
 

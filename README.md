@@ -59,14 +59,24 @@ All face definitions, widget catalog, and bundle IDs live in `watchface-config.j
 - **`complications`** — maps slot names to widget kind strings from the `widgets` catalog.
 - **`appleBundleID`** — only needed for bundle-based faces (Chronograph, NikeCompact). Omit for standard faces.
 - **`deviceSize`** — optional, defaults to `8`.
-- **`snapshotPath`** — optional path to a PNG used as the face picker preview (relative to project root). Falls back to a 1×1 black placeholder if omitted or missing.
-- **`noBordersSnapshotPath`** — optional path to the borderless variant. Falls back to `snapshotPath` if omitted.
+- **`snapshotPath`** / **`noBordersSnapshotPath`** — optional per-face overrides (see Snapshots below).
 
-To populate snapshots from existing `.watchface` files:
-```bash
-unzip -p "WatchFaces/Modular.watchface" snapshot.png > snapshots/Modular.png
-unzip -p "WatchFaces/Modular.watchface" no_borders_snapshot.png > snapshots/Modular_no_borders.png
-```
+## Snapshots
+
+The generator resolves preview images by **face type**, not by individual face. Drop one PNG per type into `snapshots/` and every face using that type gets the right preview automatically:
+
+| faceType | File |
+|----------|------|
+| `whistler-digital` | `snapshots/whistler-digital.png` |
+| `whistler-subdials` | `snapshots/whistler-subdials.png` |
+| `whistler-analog` | `snapshots/whistler-analog.png` |
+| `shark` | `snapshots/shark.png` |
+| `victory digital` | `snapshots/victory-digital.png` |
+| `shiba` | `snapshots/shiba.png` |
+
+The slug is the `faceType` value lowercased with spaces replaced by hyphens. A `-no-borders` variant (`shark-no-borders.png`) is used for `no_borders_snapshot.png` if present; otherwise the regular image is reused. If neither exists, a 1×1 black placeholder is used silently.
+
+A specific face can still override the type-level image via `snapshotPath` / `noBordersSnapshotPath` in the config.
 
 ## What it generates
 
