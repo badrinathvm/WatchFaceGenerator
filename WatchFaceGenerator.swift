@@ -1,24 +1,28 @@
 #!/usr/bin/swift
 // WatchFaceGenerator.swift
-// Generates .watchface files from watchface-config.json — no Apple Watch needed.
+// Generates .watchface files by combining an app identity config and a face catalog.
 //
 // Usage:
 //   swift WatchFaceGenerator.swift [options]
 //
 // Options:
-//   --config <path>               Path to JSON config (default: watchface-config.json)
-//   --app-bundle-id <id>          Override appBundleID from config
-//   --extension-bundle-id <id>    Override extensionBundleID from config
+//   --app <path>                  Path to app identity JSON (default: app.json)
+//   --faces <path>                Path to face catalog JSON (default: faces.json)
+//   --app-bundle-id <id>          Override bundleID from app.json
+//   --extension-bundle-id <id>    Override extensionBundleID from app.json
 
 import Foundation
 
-// MARK: - Config Schema
+// MARK: - Schema
 
-struct AppConfig: Decodable {
-    var appBundleID: String
+struct AppIdentity: Decodable {
+    var bundleID: String
     var extensionBundleID: String
     var complicationType: Int
     var widgets: [String: String]  // widgetKind → displayName
+}
+
+struct FacesCatalog: Decodable {
     var faces: [FaceConfig]
 }
 
@@ -30,54 +34,52 @@ struct FaceConfig: Decodable {
     let customization: [String: String]
     let complications: [String: String]  // slot → widgetKind
     let deviceSize: Int?
-    let snapshotPath: String?           // optional override; auto-resolved from faceType if absent
-    let noBordersSnapshotPath: String?  // optional override; falls back to snapshotPath resolution
+    let snapshotPath: String?            // optional override; auto-resolved from faceType if absent
+    let noBordersSnapshotPath: String?   // optional override; falls back to snapshotPath resolution
 }
 
 // MARK: - CLI Parsing
 
-func parseArgs() -> (configPath: String, appBundleID: String?, extensionBundleID: String?) {
-    var configPath = "watchface-config.json"
-    var appBundleID: String?
+func parseArgs() -> (appPath: String, facesPath: String, bundleID: String?, extensionBundleID: String?) {
+    var appPath = "app.json"
+    var facesPath = "faces.json"
+    var bundleID: String?
     var extensionBundleID: String?
 
     var iter = CommandLine.arguments.dropFirst().makeIterator()
     while let arg = iter.next() {
         switch arg {
-        case "--config":              configPath = iter.next() ?? configPath
-        case "--app-bundle-id":       appBundleID = iter.next()
+        case "--app":                 appPath = iter.next() ?? appPath
+        case "--faces":               facesPath = iter.next() ?? facesPath
+        case "--app-bundle-id":       bundleID = iter.next()
         case "--extension-bundle-id": extensionBundleID = iter.next()
         default: break
         }
     }
-    return (configPath, appBundleID, extensionBundleID)
+    return (appPath, facesPath, bundleID, extensionBundleID)
 }
 
 // MARK: - Builder
 
 struct WatchFaceBuilder {
     let face: FaceConfig
-    let config: AppConfig
+    let app: AppIdentity
     let projectRoot: URL
 
-    // Sanitizes faceType to a filename-safe slug: "victory digital" → "victory-digital"
     private var faceTypeSlug: String {
         face.faceType.lowercased().replacingOccurrences(of: " ", with: "-")
     }
 
     private func resolvedSnapshot(override path: String?, suffix: String) -> Data? {
-        // 1. Explicit per-face override in config
         if let path {
             let url = URL(fileURLWithPath: path, relativeTo: projectRoot)
             if let data = try? Data(contentsOf: url) { return data }
             print("⚠️  Snapshot override not found: \(url.path)")
         }
-        // 2. Auto-resolve from snapshots/<faceType-slug><suffix>.png
         let autoURL = projectRoot
             .appendingPathComponent("snapshots")
             .appendingPathComponent("\(faceTypeSlug)\(suffix).png")
-        if let data = try? Data(contentsOf: autoURL) { return data }
-        return nil
+        return try? Data(contentsOf: autoURL)
     }
 
     func buildFaceJSON() throws -> Data {
@@ -98,14 +100,14 @@ struct WatchFaceBuilder {
         var complications: [String: Any] = [:]
         for (slot, widgetKind) in face.complications {
             complications[slot] = [
-                "app": config.appBundleID,
+                "app": app.bundleID,
                 "descriptor": [
-                    "containerBundleIdentifier": config.appBundleID,
+                    "containerBundleIdentifier": app.bundleID,
                     "kind": widgetKind,
-                    "extensionBundleIdentifier": config.extensionBundleID
+                    "extensionBundleIdentifier": app.extensionBundleID
                 ],
-                "type": config.complicationType,
-                "extension": config.appBundleID
+                "type": app.complicationType,
+                "extension": app.bundleID
             ]
         }
         root["complications"] = complications
@@ -120,8 +122,8 @@ struct WatchFaceBuilder {
 
         for (slot, widgetKind) in face.complications {
             let key = slot.replacingOccurrences(of: " ", with: "-")
-            bundleIDs[key] = config.appBundleID
-            names[key] = config.widgets[widgetKind] ?? widgetKind
+            bundleIDs[key] = app.bundleID
+            names[key] = app.widgets[widgetKind] ?? widgetKind
         }
 
         let metadata: [String: Any] = [
@@ -148,9 +150,8 @@ struct WatchFaceBuilder {
         let placeholder = Data(base64Encoded:
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVQI12NgAAAAAgAB4iG8MwAAAABJRU5ErkJggg=="
         )!
-
-        let snapshotData    = resolvedSnapshot(override: face.snapshotPath, suffix: "") ?? placeholder
-        let noBordersData   = resolvedSnapshot(override: face.noBordersSnapshotPath, suffix: "-no-borders") ?? snapshotData
+        let snapshotData  = resolvedSnapshot(override: face.snapshotPath, suffix: "") ?? placeholder
+        let noBordersData = resolvedSnapshot(override: face.noBordersSnapshotPath, suffix: "-no-borders") ?? snapshotData
         try snapshotData.write(to: tmpDir.appendingPathComponent("snapshot.png"))
         try noBordersData.write(to: tmpDir.appendingPathComponent("no_borders_snapshot.png"))
 
@@ -175,37 +176,42 @@ struct WatchFaceBuilder {
     }
 }
 
+// MARK: - Helpers
+
+func load<T: Decodable>(_ type: T.Type, from path: String, relativeTo root: URL) -> T {
+    let url = URL(fileURLWithPath: path, relativeTo: root)
+    guard let data = try? Data(contentsOf: url) else {
+        print("❌  File not found: \(url.path)")
+        exit(1)
+    }
+    do {
+        return try JSONDecoder().decode(T.self, from: data)
+    } catch {
+        print("❌  Failed to parse \(url.lastPathComponent): \(error.localizedDescription)")
+        exit(1)
+    }
+}
+
 // MARK: - Main
 
-let (configPath, cliAppBundleID, cliExtensionBundleID) = parseArgs()
+let (appPath, facesPath, cliBundleID, cliExtensionBundleID) = parseArgs()
 
 let projectRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-let configURL   = URL(fileURLWithPath: configPath, relativeTo: projectRoot)
 
-guard let configData = try? Data(contentsOf: configURL) else {
-    print("❌  Config file not found: \(configURL.path)")
-    print("    Run from the project root or pass --config <path>")
-    exit(1)
-}
+var app     = load(AppIdentity.self, from: appPath, relativeTo: projectRoot)
+let catalog = load(FacesCatalog.self, from: facesPath, relativeTo: projectRoot)
 
-var appConfig: AppConfig
-do {
-    appConfig = try JSONDecoder().decode(AppConfig.self, from: configData)
-} catch {
-    print("❌  Failed to parse config: \(error.localizedDescription)")
-    exit(1)
-}
-
-// CLI overrides take precedence over JSON values
-if let id = cliAppBundleID       { appConfig.appBundleID = id }
-if let id = cliExtensionBundleID { appConfig.extensionBundleID = id }
+// CLI overrides take precedence over app.json values
+if let id = cliBundleID          { app.bundleID = id }
+if let id = cliExtensionBundleID { app.extensionBundleID = id }
 
 let outputDir = projectRoot.appendingPathComponent("output")
-print("Config → \(configURL.path)")
+print("App    → \(URL(fileURLWithPath: appPath, relativeTo: projectRoot).path)")
+print("Faces  → \(URL(fileURLWithPath: facesPath, relativeTo: projectRoot).path)")
 print("Output → \(outputDir.path)\n")
 
-for faceConfig in appConfig.faces {
-    let builder = WatchFaceBuilder(face: faceConfig, config: appConfig, projectRoot: projectRoot)
+for faceConfig in catalog.faces {
+    let builder = WatchFaceBuilder(face: faceConfig, app: app, projectRoot: projectRoot)
     do {
         try builder.build(outputDirectory: outputDir)
     } catch {
@@ -215,7 +221,6 @@ for faceConfig in appConfig.faces {
 
 print("""
 
-Note: snapshot.png / no_borders_snapshot.png are 1×1 placeholders.
-To restore real snapshots, extract them from the originals:
-  unzip -p "WatchFaces/Modular.watchface" snapshot.png > output/snapshot.png
+Note: snapshot.png / no_borders_snapshot.png default to a 1×1 placeholder
+when no matching file exists in snapshots/. See snapshots/README.md for details.
 """)
