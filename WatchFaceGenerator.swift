@@ -30,6 +30,8 @@ struct FaceConfig: Decodable {
     let customization: [String: String]
     let complications: [String: String]  // slot → widgetKind
     let deviceSize: Int?
+    let snapshotPath: String?
+    let noBordersSnapshotPath: String?
 }
 
 // MARK: - CLI Parsing
@@ -56,6 +58,17 @@ func parseArgs() -> (configPath: String, appBundleID: String?, extensionBundleID
 struct WatchFaceBuilder {
     let face: FaceConfig
     let config: AppConfig
+    let projectRoot: URL
+
+    private func resolvedSnapshot(_ path: String?) -> Data? {
+        guard let path else { return nil }
+        let url = URL(fileURLWithPath: path, relativeTo: projectRoot)
+        guard let data = try? Data(contentsOf: url) else {
+            print("⚠️  Snapshot not found: \(url.path) — using placeholder")
+            return nil
+        }
+        return data
+    }
 
     func buildFaceJSON() throws -> Data {
         var root: [String: Any] = [
@@ -122,12 +135,14 @@ struct WatchFaceBuilder {
         try buildFaceJSON().write(to: tmpDir.appendingPathComponent("face.json"))
         try buildMetadataJSON().write(to: tmpDir.appendingPathComponent("metadata.json"))
 
-        // 1×1 black PNG — placeholder until real snapshots are captured from Apple Watch
         let placeholder = Data(base64Encoded:
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVQI12NgAAAAAgAB4iG8MwAAAABJRU5ErkJggg=="
         )!
-        try placeholder.write(to: tmpDir.appendingPathComponent("snapshot.png"))
-        try placeholder.write(to: tmpDir.appendingPathComponent("no_borders_snapshot.png"))
+
+        let snapshotData = resolvedSnapshot(face.snapshotPath) ?? placeholder
+        let noBordersData = resolvedSnapshot(face.noBordersSnapshotPath) ?? snapshotData
+        try snapshotData.write(to: tmpDir.appendingPathComponent("snapshot.png"))
+        try noBordersData.write(to: tmpDir.appendingPathComponent("no_borders_snapshot.png"))
 
         try fm.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         let outputURL = outputDirectory.appendingPathComponent("\(face.name).watchface")
@@ -180,7 +195,7 @@ print("Config → \(configURL.path)")
 print("Output → \(outputDir.path)\n")
 
 for faceConfig in appConfig.faces {
-    let builder = WatchFaceBuilder(face: faceConfig, config: appConfig)
+    let builder = WatchFaceBuilder(face: faceConfig, config: appConfig, projectRoot: projectRoot)
     do {
         try builder.build(outputDirectory: outputDir)
     } catch {

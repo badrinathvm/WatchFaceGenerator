@@ -30,7 +30,9 @@
         "bottom left":   "NetCounterWidget",
         "bottom center": "ReturnCounterWidget",
         "bottom right":  "LobCounterWidget"
-      }
+      },
+      "snapshotPath": "snapshots/Modular.png",
+      "noBordersSnapshotPath": "snapshots/Modular_no_borders.png"
     },
     {
       "name": "ModularCompact",

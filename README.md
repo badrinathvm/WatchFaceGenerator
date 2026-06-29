@@ -59,6 +59,14 @@ All face definitions, widget catalog, and bundle IDs live in `watchface-config.j
 - **`complications`** — maps slot names to widget kind strings from the `widgets` catalog.
 - **`appleBundleID`** — only needed for bundle-based faces (Chronograph, NikeCompact). Omit for standard faces.
 - **`deviceSize`** — optional, defaults to `8`.
+- **`snapshotPath`** — optional path to a PNG used as the face picker preview (relative to project root). Falls back to a 1×1 black placeholder if omitted or missing.
+- **`noBordersSnapshotPath`** — optional path to the borderless variant. Falls back to `snapshotPath` if omitted.
+
+To populate snapshots from existing `.watchface` files:
+```bash
+unzip -p "WatchFaces/Modular.watchface" snapshot.png > snapshots/Modular.png
+unzip -p "WatchFaces/Modular.watchface" no_borders_snapshot.png > snapshots/Modular_no_borders.png
+```
 
 ## What it generates
 
