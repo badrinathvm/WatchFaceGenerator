@@ -91,8 +91,7 @@ A specific face can still override the type-level image via `snapshotPath` / `no
 
 ## Notes
 
-- `snapshot.png` and `no_borders_snapshot.png` inside each generated `.watchface` are 1×1 black placeholders. To restore real snapshots, extract them from the originals:
-  ```bash
-  unzip -p "WatchFaces/Modular.watchface" snapshot.png > output/snapshot.png
-  ```
-- Never overwrite production `WatchFaces/` assets directly — always review generated output first.
+- Generated files land in `output/` — never commit or deploy them directly. Review each `.watchface` before copying it into your app bundle.
+- Snapshots default to a 1×1 black placeholder until you drop real PNGs into `snapshots/`. The face picker preview will appear blank until then, but the face itself works correctly on device.
+- `no_borders_snapshot.png` falls back to the regular snapshot if no `-no-borders` variant is provided — one image per face type is enough to get started.
+- `complicationType: 56` is the Apple-internal value for WidgetKit-backed complications. Do not change it unless Apple changes the protocol.
