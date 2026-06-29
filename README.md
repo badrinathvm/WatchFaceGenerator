@@ -1,48 +1,91 @@
 # WatchFaceGenerator
 
-A Swift script that generates `.watchface` files from two JSON configs — no Apple Watch required.
+A Swift script that generates `.watchface` files from an interactive wizard — no Apple Watch required.
 
-## Usage
+## Installation
 
-### First time — run the setup wizard
+### Homebrew (recommended)
 
 ```bash
-swift WatchFaceGenerator.swift --init
+brew tap badrinathvm/tap
+brew install watchface-generator
 ```
 
-Walks you through your app's bundle IDs and widget catalog step by step, then asks which widgets go in which slots for each face type. Writes `app.json` and `faces.json` automatically.
+### Manual
 
-### Generate `.watchface` files
+Clone the repo and run the script directly with Swift:
 
 ```bash
+git clone https://github.com/badrinathvm/WatchFaceGenerator.git
+cd WatchFaceGenerator
 swift WatchFaceGenerator.swift
 ```
 
-Reads `app.json` and `faces.json` from the current directory. Generated files are written to `output/`. Copy a verified file into your app's `WatchFaces/` bundle manually.
+## Usage
 
-### Options
+### Default — wizard + generate
+
+```bash
+watchface-generator
+```
+
+Runs an interactive setup wizard asking for your bundle IDs, widget catalog, and slot assignments, then generates `.watchface` files immediately. No config files needed.
+
+### Save config for reuse
+
+```bash
+watchface-generator --init
+```
+
+Same wizard, but writes `app.json` and `faces.json` to disk instead of generating. On subsequent runs, pass `--app` and `--faces` to skip the wizard:
+
+```bash
+watchface-generator --app app.json --faces faces.json
+```
+
+### Inline — no wizard, no files
+
+```bash
+watchface-generator \
+  --app-bundle-id com.example.myapp.watchkitapp \
+  --extension-bundle-id com.example.myapp.watchkitapp.WidgetExtension \
+  --widget ServeWidget "Serve Error" \
+  --widget SubmitWidget "Submit Session" \
+  --face Modular "top left=SubmitWidget,center=ServeWidget"
+```
+
+### All options
 
 | Flag | Description |
 |------|-------------|
-| `--init` | Run the interactive setup wizard |
-| `--app <path>` | Path to app identity JSON (default: `app.json`) |
-| `--faces <path>` | Path to face catalog JSON (default: `faces.json`) |
-| `--app-bundle-id <id>` | Override `bundleID` from `app.json` |
-| `--extension-bundle-id <id>` | Override `extensionBundleID` from `app.json` |
+| `--init` | Wizard → write `app.json` + `faces.json`, then exit |
+| `--app <path>` | Load app identity from a saved JSON file |
+| `--faces <path>` | Load face catalog from a saved JSON file |
+| `--app-bundle-id <id>` | Override bundle ID inline |
+| `--extension-bundle-id <id>` | Override extension bundle ID inline |
+| `--widget <kind> <name>` | Add a widget inline (repeatable) |
+| `--face <name> "slot=kind,..."` | Assign widgets to a face template inline (repeatable) |
+| `--version` | Print version and exit |
 
-**Example — generate for a different app without editing files:**
-```bash
-swift WatchFaceGenerator.swift \
-  --app my-app.json \
-  --app-bundle-id com.example.myapp.watchkitapp \
-  --extension-bundle-id com.example.myapp.watchkitapp.WidgetExtension
-```
+Generated files are written to `output/`. Copy a verified `.watchface` into your app's `WatchFaces/` bundle manually.
+
+## Wizard
+
+The wizard asks questions in order:
+
+1. **App Bundle ID** — your app's main bundle identifier
+2. **Extension Bundle ID** — your WidgetKit extension identifier (defaults to `<bundleID>.WidgetExtension`)
+3. **Widget catalog** — add widget kinds and display names one by one
+4. **Face configuration** — for each of the 8 built-in face types, choose:
+   - `R` — randomly distribute your widgets across slots
+   - `S` — assign each slot manually
+   - `N` — skip this face
 
 ## Config files
 
-The generator uses two separate files so app identity and face layout can evolve independently.
+When using `--init`, two files are written. These are **not** committed to the repo — they're per-project and listed in `.gitignore`.
 
-### `app.json` — app identity (you own this per project)
+### `app.json` — app identity
 
 ```json
 {
@@ -55,10 +98,7 @@ The generator uses two separate files so app identity and face layout can evolve
 }
 ```
 
-- **`widgets`** — maps widget kind strings (as defined in your WidgetKit extension) to display names shown in the watch face catalog.
-- **`complicationType`** — Apple-internal value for WidgetKit complications. Always `56`; do not change.
-
-### `faces.json` — face catalog (reusable across apps)
+### `faces.json` — face catalog
 
 ```json
 {
@@ -77,14 +117,13 @@ The generator uses two separate files so app identity and face layout can evolve
 }
 ```
 
-- **`complications`** — maps slot names to widget kind strings from the `widgets` catalog in `app.json`.
-- **`appleBundleID`** — only needed for bundle-based faces (Chronograph, ModularDuo, NikeCompact). Omit for standard faces.
+- **`appleBundleID`** — only needed for bundle-based faces (Chronograph, ModularDuo, NikeCompact).
 - **`deviceSize`** — optional, defaults to `8`.
-- **`snapshotPath`** / **`noBordersSnapshotPath`** — optional per-face overrides (see Snapshots below).
+- **`snapshotPath`** / **`noBordersSnapshotPath`** — optional per-face snapshot overrides.
 
 ## Snapshots
 
-The generator resolves preview images by **face type**, not by individual face. Drop one PNG per type into `snapshots/` and every face using that type gets the right preview automatically:
+Drop one PNG per face type into `snapshots/` and every face of that type gets the right preview automatically:
 
 | faceType | File |
 |----------|------|
@@ -97,9 +136,7 @@ The generator resolves preview images by **face type**, not by individual face. 
 | `blackcomb` | `snapshots/blackcomb.png` |
 | `cloudraker` | `snapshots/cloudraker.png` |
 
-The slug is the `faceType` value lowercased with spaces replaced by hyphens. A `-no-borders` variant (e.g. `shark-no-borders.png`) is used for `no_borders_snapshot.png` if present; otherwise the regular image is reused. If neither exists, a 1×1 black placeholder is used silently.
-
-A specific face can still override the type-level image via `snapshotPath` / `noBordersSnapshotPath` in `faces.json`.
+The slug is the `faceType` lowercased with spaces replaced by hyphens. A `-no-borders` variant (e.g. `shark-no-borders.png`) is used for `no_borders_snapshot.png` if present; otherwise the regular image is reused. If neither exists, a 1×1 black placeholder is used silently.
 
 ## What it generates
 
@@ -119,3 +156,4 @@ A specific face can still override the type-level image via `snapshotPath` / `no
 - Generated files land in `output/` — never commit or deploy them directly. Review each `.watchface` before copying it into your app bundle.
 - Snapshots default to a 1×1 black placeholder until you drop real PNGs into `snapshots/`. The face picker preview will appear blank until then, but the face itself works correctly on device.
 - `no_borders_snapshot.png` falls back to the regular snapshot if no `-no-borders` variant is provided — one image per face type is enough to get started.
+- `complicationType: 56` is the Apple-internal value for WidgetKit complications. Do not change it.
