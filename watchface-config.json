@@ -12,7 +12,8 @@
     "VolleyCounterWidget":          "Volley Error",
     "SmashCounterWidget":           "Smash Error",
     "SlowNetTransitionCounterWidget": "Slow Net Transition",
-    "SubmitWidget":                 "Submit Session"
+    "SubmitWidget":                 "Submit Session",
+    "PowerOverControlCounterWidget": "Power Over Control"
   },
   "faces": [
     {
@@ -109,6 +110,36 @@
         "top":    "SubmitWidget",
         "center": "NetCounterWidget",
         "bottom": "DinkCounterWidget"
+      }
+    },
+    {
+      "name": "Meridian",
+      "analyticsID": "blackcomb",
+      "faceType": "blackcomb",
+      "customization": {
+        "color": "Pistachio",
+        "style": "style 1"
+      },
+      "complications": {
+        "subdial top":    "LobCounterWidget",
+        "subdial right":  "DinkCounterWidget",
+        "subdial bottom": "PowerOverControlCounterWidget",
+        "subdial left":   "ServeCounterWidget"
+      }
+    },
+    {
+      "name": "ModularDuo",
+      "analyticsID": "cloudraker",
+      "faceType": "cloudraker",
+      "appleBundleID": "com.apple.NTKCloudrakerFaceBundle",
+      "customization": {
+        "color": "special.multicolor",
+        "numerals": "style 1"
+      },
+      "complications": {
+        "top left": "SubmitWidget",
+        "center":   "ServeCounterWidget",
+        "bottom":   "LobCounterWidget"
       }
     }
   ]
