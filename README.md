@@ -4,24 +4,33 @@ A Swift script that generates `.watchface` files from two JSON configs — no Ap
 
 ## Usage
 
-Run from the project root:
+### First time — run the setup wizard
+
+```bash
+swift WatchFaceGenerator.swift --init
+```
+
+Walks you through your app's bundle IDs and widget catalog step by step, then asks which widgets go in which slots for each face type. Writes `app.json` and `faces.json` automatically.
+
+### Generate `.watchface` files
 
 ```bash
 swift WatchFaceGenerator.swift
 ```
 
-Generated files are written to `output/`. Copy a verified file into your app's `WatchFaces/` bundle manually.
+Reads `app.json` and `faces.json` from the current directory. Generated files are written to `output/`. Copy a verified file into your app's `WatchFaces/` bundle manually.
 
 ### Options
 
 | Flag | Description |
 |------|-------------|
+| `--init` | Run the interactive setup wizard |
 | `--app <path>` | Path to app identity JSON (default: `app.json`) |
 | `--faces <path>` | Path to face catalog JSON (default: `faces.json`) |
 | `--app-bundle-id <id>` | Override `bundleID` from `app.json` |
 | `--extension-bundle-id <id>` | Override `extensionBundleID` from `app.json` |
 
-**Example — run against a different app:**
+**Example — generate for a different app without editing files:**
 ```bash
 swift WatchFaceGenerator.swift \
   --app my-app.json \
